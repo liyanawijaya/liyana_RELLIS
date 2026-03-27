@@ -109,8 +109,8 @@ def inference_model(model: BaseSegmentor,
         will be returned, otherwise return the segmentation results directly.
     """
     # prepare data
+    #data, is_batch = _preprare_data(img, model) #my comment
     data, is_batch = _preprare_data(img, model)
-
     # forward the model
     with torch.no_grad():
         results = model.test_step(data)
@@ -127,7 +127,7 @@ def show_result_pyplot(model: BaseSegmentor,
                        draw_pred: bool = True,
                        wait_time: float = 0,
                        show: bool = True,
-                       with_labels: Optional[bool] = True,
+                       with_labels: Optional[bool] = False,
                        save_dir=None,
                        out_file=None):
     """Visualize the segmentation results on the image.
@@ -160,10 +160,20 @@ def show_result_pyplot(model: BaseSegmentor,
     """
     if hasattr(model, 'module'):
         model = model.module
-    if isinstance(img, str):
+    
+    if isinstance(img, str): #my comment -->
         image = mmcv.imread(img, channel_order='rgb')
     else:
-        image = img
+        image = img #my comment<--
+    '''
+    if isinstance(img, str):
+        if img.endswith('.npy'):
+            image = np.load(img)  # assuming (H, W, 3) or (H, W, 6) for RGB or extended channels
+            image = image[:, :, :3]  # optional: only visualize RGB
+    else:
+        image = mmcv.imread(img, channel_order='rgb')
+    ''' #mycode
+    
     if save_dir is not None:
         mkdir_or_exist(save_dir)
     # init visualizer
@@ -176,7 +186,8 @@ def show_result_pyplot(model: BaseSegmentor,
         palette=model.dataset_meta['palette'])
     visualizer.add_datasample(
         name=title,
-        image=image,
+        #image=image,
+        image = image[:, :, :3], #my code
         data_sample=result,
         draw_gt=draw_gt,
         draw_pred=draw_pred,

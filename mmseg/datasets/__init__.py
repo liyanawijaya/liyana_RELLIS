@@ -28,6 +28,7 @@ from .stare import STAREDataset
 from .synapse import SynapseDataset
 from .rellis import RELLISDataset
 from .outback import OUTBACKDataset
+from .rellis_NW import RELLISNWDataset
 # yapf: disable
 from .transforms import (CLAHE, AdjustGamma, Albu, BioMedical3DPad,
                          BioMedical3DRandomCrop, BioMedical3DRandomFlip,
@@ -51,7 +52,7 @@ __all__ = [
     'DRIVEDataset', 'HRFDataset', 'STAREDataset', 'DarkZurichDataset',
     'NightDrivingDataset', 'COCOStuffDataset', 'LoveDADataset',
     'MultiImageMixDataset', 'iSAIDDataset', 'ISPRSDataset', 'PotsdamDataset',
-    'LoadAnnotations', 'RandomCrop', 'SegRescale', 'PhotoMetricDistortion',
+    'LoadAnnotations','RandomCrop', 'SegRescale', 'PhotoMetricDistortion',
     'RandomRotate', 'AdjustGamma', 'CLAHE', 'Rerange', 'RGB2Gray',
     'RandomCutOut', 'RandomMosaic', 'PackSegInputs', 'ResizeToMultiple',
     'LoadImageFromNDArray', 'LoadBiomedicalImageFromFile',
@@ -63,5 +64,5 @@ __all__ = [
     'MapillaryDataset_v2', 'Albu', 'LEVIRCDDataset',
     'LoadMultipleRSImageFromFile', 'LoadSingleRSImageFromFile',
     'ConcatCDInput', 'BaseCDDataset', 'DSDLSegDataset', 'BDD100KDataset',
-    'NYUDataset', 'HSIDrive20Dataset'
+    'NYUDataset', 'HSIDrive20Dataset', 'OUTBACKDataset', 'RELLISNWDataset'
 ]

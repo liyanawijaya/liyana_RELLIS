@@ -280,7 +280,7 @@ class RandomCrop(BaseTransform):
         crop_bbox = generate_crop_bbox(img)
         if self.cat_max_ratio < 1.:
             # Repeat 10 times
-            for _ in range(10):
+            for _ in range(10): 
                 seg_temp = self.crop(results['gt_seg_map'], crop_bbox)
                 labels, cnt = np.unique(seg_temp, return_counts=True)
                 cnt = cnt[labels != self.ignore_index]
@@ -336,7 +336,9 @@ class RandomCrop(BaseTransform):
         return self.__class__.__name__ + f'(crop_size={self.crop_size})'
 
 
+
 @TRANSFORMS.register_module()
+
 class RandomRotate(BaseTransform):
     """Rotate the image & seg.
 
@@ -578,7 +580,7 @@ class SegRescale(BaseTransform):
     def __repr__(self):
         return self.__class__.__name__ + f'(scale_factor={self.scale_factor})'
 
-
+'''
 @TRANSFORMS.register_module()
 class PhotoMetricDistortion(BaseTransform):
     """Apply photometric distortion to image sequentially, every transformation
@@ -747,7 +749,84 @@ class PhotoMetricDistortion(BaseTransform):
                      f'{self.saturation_upper}), '
                      f'hue_delta={self.hue_delta})')
         return repr_str
+''' #my comment ^^^
 
+#my code->
+@TRANSFORMS.register_module()
+class PhotoMetricDistortion(BaseTransform):
+
+    def __init__(self,
+                 brightness_delta: int = 32,
+                 contrast_range: Sequence[float] = (0.5, 1.5),
+                 saturation_range: Sequence[float] = (0.5, 1.5),
+                 hue_delta: int = 18):
+        self.brightness_delta = brightness_delta
+        self.contrast_lower, self.contrast_upper = contrast_range
+        self.saturation_lower, self.saturation_upper = saturation_range
+        self.hue_delta = hue_delta
+
+    def convert(self, img: np.ndarray, alpha: float = 1.0, beta: float = 0.0) -> np.ndarray:
+        img = img.astype(np.float32) * alpha + beta
+        return np.clip(img, 0, 255).astype(np.uint8)
+
+    def brightness(self, img: np.ndarray) -> np.ndarray:
+        if random.randint(0, 1):
+            return self.convert(img, beta=random.uniform(-self.brightness_delta, self.brightness_delta))
+        return img
+
+    def contrast(self, img: np.ndarray) -> np.ndarray:
+        if random.randint(0, 1):
+            return self.convert(img, alpha=random.uniform(self.contrast_lower, self.contrast_upper))
+        return img
+
+    def saturation(self, img: np.ndarray) -> np.ndarray:
+        if random.randint(0, 1):
+            img = mmcv.bgr2hsv(img)
+            img[:, :, 1] = self.convert(
+                img[:, :, 1],
+                alpha=random.uniform(self.saturation_lower, self.saturation_upper))
+            img = mmcv.hsv2bgr(img)
+        return img
+
+    def hue(self, img: np.ndarray) -> np.ndarray:
+        if random.randint(0, 1):
+            img = mmcv.bgr2hsv(img)
+            img[:, :, 0] = (img[:, :, 0].astype(int) +
+                            random.randint(-self.hue_delta, self.hue_delta)) % 180
+            img = mmcv.hsv2bgr(img)
+        return img
+
+    def transform(self, results: dict) -> dict:
+        img = results['img']
+
+        # Split: [0:3] = RGB, [3:] = other channels
+        img_rgb = img[:, :, :3]
+        
+        img_rest = img[:, :, 3:]
+
+        # Apply distortion only to RGB
+        img_rgb = self.brightness(img_rgb)
+        mode = random.randint(0, 1)
+        if mode == 1:
+            img_rgb = self.contrast(img_rgb)
+
+        img_rgb = self.saturation(img_rgb)
+        img_rgb = self.hue(img_rgb)
+
+        if mode == 0:
+            img_rgb = self.contrast(img_rgb)
+
+        # Concatenate back
+        img = np.concatenate([img_rgb, img_rest], axis=2)
+        results['img'] = img
+        return results
+
+    def __repr__(self):
+        return (f'{self.__class__.__name__}(brightness_delta={self.brightness_delta}, '
+                f'contrast_range=({self.contrast_lower}, {self.contrast_upper}), '
+                f'saturation_range=({self.saturation_lower}, {self.saturation_upper}), '
+                f'hue_delta={self.hue_delta})')
+#my code
 
 @TRANSFORMS.register_module()
 class RandomCutOut(BaseTransform):

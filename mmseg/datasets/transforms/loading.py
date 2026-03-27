@@ -2,7 +2,7 @@
 import warnings
 from pathlib import Path
 from typing import Dict, Optional, Union
-
+import os
 import mmcv
 import mmengine.fileio as fileio
 import numpy as np
@@ -18,7 +18,122 @@ try:
 except ImportError:
     gdal = None
 
+#-> my code
+from tifffile import imread
 
+@TRANSFORMS.register_module()
+class LoadNpyAsImage(BaseTransform):
+    def transform(self, results: dict) -> dict:
+        path = results['img_path']
+        img = np.load(path)
+        #print(img.shape)
+        results['img'] = img
+        
+        results['img_shape'] = img.shape[:2]
+        results['ori_shape'] = img.shape[:2]
+        return results
+
+
+@TRANSFORMS.register_module()
+class LoadTifImageWith6Channels(BaseTransform):
+    def __init__(self, to_float32=False):
+        self.to_float32 = to_float32
+
+    def transform(self, results: dict) -> dict:
+        filename = results['img_path']
+        img = imread(filename)  # shape: (H, W, 6)
+        if self.to_float32:
+            img = img.astype(np.float32)
+        results['img'] = img
+        results['img_shape'] = img.shape[:2]
+        results['ori_shape'] = img.shape[:2]
+        return results
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}(to_float32={self.to_float32})'
+#to add second GT
+'''
+
+@TRANSFORMS.register_module()
+class LoadAuxAnnotations:
+    """Load a second semantic segmentation GT mask.
+
+    Adds:
+      - gt_seg_map_aux (np.uint8)
+      - seg_fields += ['gt_seg_map_aux']
+
+    Requires:
+      - results['seg_map_path_aux'] must exist.
+        It can be either:
+          (A) full path to the aux mask file (recommended), OR
+          (B) root folder of aux masks (then we join with main GT filename).
+    """
+
+    def __init__(self, reduce_zero_label=None, backend_args=None, imdecode_backend='pillow'):
+        self.reduce_zero_label = reduce_zero_label
+        self.backend_args = backend_args.copy() if backend_args else None
+        self.imdecode_backend = imdecode_backend
+
+    def __call__(self, results: dict) -> dict:
+        if 'seg_map_path_aux' not in results:
+            raise KeyError(
+                "seg_map_path_aux not found in results. "
+                "Add seg_map_path_aux in dataset.data_prefix and/or dataset.load_data_list()."
+            )
+
+        aux_entry = results['seg_map_path_aux']
+
+        # Case A: dataset already provides full per-sample aux path
+        if isinstance(aux_entry, str) and os.path.splitext(aux_entry)[1].lower() in ('.png', '.jpg', '.jpeg', '.tif', '.tiff'):
+            aux_path = aux_entry
+        else:
+            # Case B: aux_entry is a root folder; join with main GT filename
+            if 'seg_map_path' not in results:
+                raise KeyError("seg_map_path not found in results; cannot infer aux filename.")
+            fname = os.path.basename(results['seg_map_path'])
+            aux_path = os.path.join(aux_entry, fname)
+
+        # load bytes -> mask
+        img_bytes = fileio.get(aux_path, backend_args=self.backend_args)
+        gt_aux = mmcv.imfrombytes(
+            img_bytes, flag='unchanged', backend=self.imdecode_backend
+        ).squeeze().astype(np.uint8)
+
+        # use dataset setting unless explicitly passed to this transform
+        rz = results.get('reduce_zero_label', False) if self.reduce_zero_label is None else self.reduce_zero_label
+
+        if rz:
+            gt_aux[gt_aux == 0] = 255
+            gt_aux = gt_aux - 1
+            gt_aux[gt_aux == 254] = 255
+
+        # apply label_map if present (same as LoadAnnotations)
+        if results.get('label_map', None) is not None:
+            gt_aux_copy = gt_aux.copy()
+            for old_id, new_id in results['label_map'].items():
+                gt_aux[gt_aux_copy == old_id] = new_id
+
+        results['gt_seg_map_aux'] = gt_aux
+
+        if 'seg_fields' not in results:
+            results['seg_fields'] = []
+        results['seg_fields'].append('gt_seg_map_aux')
+
+        return results
+
+    def __repr__(self) -> str:
+        return (f'{self.__class__.__name__}('
+                f'reduce_zero_label={self.reduce_zero_label}, '
+                f"imdecode_backend='{self.imdecode_backend}', "
+                f'backend_args={self.backend_args})')
+
+#to add second GT
+
+
+
+    #^^^ my code
+
+'''
 @TRANSFORMS.register_module()
 class LoadAnnotations(MMCV_LoadAnnotations):
     """Load annotations for semantic segmentation provided by dataset.
@@ -132,6 +247,7 @@ class LoadAnnotations(MMCV_LoadAnnotations):
         repr_str += f"imdecode_backend='{self.imdecode_backend}', "
         repr_str += f'backend_args={self.backend_args})'
         return repr_str
+
 
 
 @TRANSFORMS.register_module()

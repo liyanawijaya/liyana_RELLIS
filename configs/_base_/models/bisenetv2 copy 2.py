@@ -1,0 +1,240 @@
+# model settings
+custom_imports = dict(
+    imports=['mmseg.models.custom.encoder_decoder_val_depth'],  # path to your custom model
+    allow_failed_imports=False)
+norm_cfg = dict(type='SyncBN', requires_grad=True)
+"""
+data_preprocessor = dict(
+    type='SegDataPreProcessor',
+    #mean=[123.675, 116.28, 103.53], #my comments
+    #std=[58.395, 57.12, 57.375], # my comments
+    mean=[123.675, 116.28, 103.53,123.675, 116.28, 103.53], # my code
+    std=[58.395, 57.12, 57.375,58.395, 57.12, 57.375], # my code
+    #mean=[123.675, 116.28, 103.53,114, 114, 114], # my code
+    #std=[58.395, 57.12, 57.375,57, 57, 57], # my code
+    bgr_to_rgb=True,
+    pad_val=0,
+    seg_pad_val=255)
+"""
+data_preprocessor = dict(
+    type='SegDataPreProcessorWithRawDepth',
+    depth_channel_idx=5,   # <-- your depth channel
+    mean=[123.675, 116.28, 103.53,123.675, 116.28, 103.53], # my code
+    std=[58.395, 57.12, 57.375,58.395, 57.12, 57.375], # my code
+    pad_val=0,
+    seg_pad_val=255
+)
+
+model = dict(
+    #type='EncoderDecoder',
+    type='EncoderDecoderWithValLoss',
+    data_preprocessor=data_preprocessor,
+    pretrained=None,
+    backbone=dict(
+        type='BiSeNetV2',
+        detail_channels=(64, 64, 128),
+        semantic_channels=(16, 32, 64, 128),
+        semantic_expansion_ratio=6,
+        bga_channels=128,
+        #out_indices=(0, 1, 2, 3, 4),
+        out_indices=(0, 1, 2, 3, 4),
+        init_cfg=None,
+        align_corners=False),
+decode_head=dict(
+    type='DepthAwareFCNHead',   # <- changed
+    in_channels=128,
+    in_index=0,
+    channels=1024,
+    num_convs=1,
+    concat_input=False,
+    dropout_ratio=0.1,
+    num_classes=5,
+    norm_cfg=norm_cfg,
+    align_corners=False,
+    loss_decode=dict(
+        type='DepthAwareCrossEntropyLoss',  # <- changed
+        log_max_depth=True,
+        log_interval=100, # print every 20 forward calls
+        use_sigmoid=False,
+        loss_weight=5,
+        avg_non_ignore=True,                # recommended
+        # ignore_index=255,                 # set if your dataset uses 255 (optional)
+
+        # reduce loss for far pixels (example piecewise in meters)
+        depth_cfg=dict(
+                mode='linear',
+                d_max=1,
+                alpha=1.0,      # full decay across [0,1]
+                min_w=0.1,      # far pixels get half weight
+                ignore_invalid_depth=True,
+                invalid_depth_val=-3
+            )
+
+            )
+        ),
+
+    
+    #decode_head=dict(
+    #    type='FCNHead',
+    #    in_channels=128,
+    #    in_index=0,
+    #    channels=1024,
+    #    num_convs=1,
+    #    concat_input=False,
+    #    dropout_ratio=0.1,
+    #    num_classes=5,
+    #    norm_cfg=norm_cfg,
+    #    align_corners=False,
+    #    loss_decode=dict(
+    #        type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)),
+auxiliary_head = [
+    dict(
+        type='DepthAwareFCNHead',
+        in_channels=16,
+        channels=16,
+        num_convs=2,
+        num_classes=5,
+        in_index=1,
+        norm_cfg=norm_cfg,
+        concat_input=False,
+        align_corners=False,
+        loss_decode=dict(
+            type='DepthAwareCrossEntropyLoss',
+            use_sigmoid=False,
+            loss_weight=2,
+            avg_non_ignore=True,          # recommended
+            # ignore_index=255,            # uncomment if your dataset uses 255
+
+            depth_cfg=dict(
+                    mode='linear',
+                    d_max=1,
+                    alpha=1.0,      # full decay across [0,1]
+                    min_w=0.1,      # far pixels get half weight
+                    ignore_invalid_depth=True,
+                    invalid_depth_val=-3
+                )
+        )
+    ),
+    dict(
+        type='DepthAwareFCNHead',
+        in_channels=32,
+        channels=64,
+        num_convs=2,
+        num_classes=5,
+        in_index=2,
+        norm_cfg=norm_cfg,
+        concat_input=False,
+        align_corners=False,
+        loss_decode=dict(
+            type='DepthAwareCrossEntropyLoss',
+            use_sigmoid=False,
+            loss_weight=2,
+            avg_non_ignore=True,
+            # ignore_index=255,
+
+            depth_cfg=dict(
+                    mode='linear',
+                    d_max=1,
+                    alpha=1.0,      # full decay across [0,1]
+                    min_w=0.1,      # far pixels get half weight
+                    ignore_invalid_depth=True,
+                    invalid_depth_val=-3
+                )
+        )
+    ),
+    dict(
+        type='DepthAwareFCNHead',
+        in_channels=64,
+        channels=256,
+        num_convs=2,
+        num_classes=5,
+        in_index=3,
+        norm_cfg=norm_cfg,
+        concat_input=False,
+        align_corners=False,
+        loss_decode=dict(
+            type='DepthAwareCrossEntropyLoss',
+            use_sigmoid=False,
+            loss_weight=2,
+            avg_non_ignore=True,
+            # ignore_index=255,
+
+            depth_cfg=dict(
+                    mode='linear',
+                    d_max=1,
+                    alpha=1.0,      # full decay across [0,1]
+                    min_w=0.1,      # far pixels get half weight
+                    ignore_invalid_depth=True,
+                    invalid_depth_val=-3
+                )
+        )
+    ),
+    dict(
+        type='DepthAwareFCNHead',
+        in_channels=128,
+        channels=1024,
+        num_convs=2,
+        num_classes=5,
+        in_index=4,
+        norm_cfg=norm_cfg,
+        concat_input=False,
+        align_corners=False,
+        loss_decode=dict(
+            type='DepthAwareCrossEntropyLoss',
+
+            use_sigmoid=False,
+            loss_weight=2,
+            avg_non_ignore=True,
+            # ignore_index=255,
+
+            depth_cfg=dict(
+                    mode='linear',
+                    d_max=1,
+                    alpha=1.0,      # full decay across [0,1]
+                    min_w=0.1,      # far pixels get half weight
+                    ignore_invalid_depth=True,
+                    invalid_depth_val=-3
+                )
+            )
+            ),
+    ],
+
+    
+    # model training and testing settings
+    train_cfg=dict(),
+    test_cfg=dict(mode='whole'))
+
+
+
+"""
+    dict(
+        type='FCNHead',
+        in_channels=64,
+        channels=256,
+        #in_channels=32,
+        #channels=64,
+        num_convs=2,
+        num_classes=5,
+        in_index=3,
+        norm_cfg=norm_cfg,
+        concat_input=False,
+        align_corners=False,
+        loss_decode=dict(
+            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)),
+    dict(
+        type='FCNHead',
+        in_channels=128,
+        channels=1024,
+        #in_channels=64,
+        #channels=256,
+        num_convs=2,
+        num_classes=5,
+        in_index=4,
+        norm_cfg=norm_cfg,
+        concat_input=False,
+        align_corners=False,
+        loss_decode=dict(
+            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)),
+"""
+
+

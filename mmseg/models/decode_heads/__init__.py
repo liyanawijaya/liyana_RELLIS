@@ -11,6 +11,9 @@ from .dpt_head import DPTHead
 from .ema_head import EMAHead
 from .enc_head import EncHead
 from .fcn_head import FCNHead
+from .fcn_head_my import DepthAwareFCNHead
+from .fcn_head_depth import DepthSliceFCNHead
+from .fcn_head_aux import FCNHeadUseAuxGT
 from .fpn_head import FPNHead
 from .gc_head import GCHead
 from .ham_head import LightHamHead
@@ -37,7 +40,7 @@ from .uper_head import UPerHead
 from .vpd_depth_head import VPDDepthHead
 
 __all__ = [
-    'FCNHead', 'PSPHead', 'ASPPHead', 'PSAHead', 'NLHead', 'GCHead', 'CCHead',
+    'FCNHeadUseAuxGT','DepthSliceFCNHead','FCNHead','DepthAwareFCNHead', 'PSPHead', 'ASPPHead', 'PSAHead', 'NLHead', 'GCHead', 'CCHead',
     'UPerHead', 'DepthwiseSeparableASPPHead', 'ANNHead', 'DAHead', 'OCRHead',
     'EncHead', 'DepthwiseSeparableFCNHead', 'FPNHead', 'EMAHead', 'DNLHead',
     'PointHead', 'APCHead', 'DMHead', 'LRASPPHead', 'SETRUPHead',

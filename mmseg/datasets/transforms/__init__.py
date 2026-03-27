@@ -1,9 +1,10 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from .formatting import PackSegInputs
+#from .formatting import PackMultiStreamInputs
 from .loading import (LoadAnnotations, LoadBiomedicalAnnotation,
                       LoadBiomedicalData, LoadBiomedicalImageFromFile,
                       LoadDepthAnnotation, LoadImageFromNDArray,
-                      LoadMultipleRSImageFromFile, LoadSingleRSImageFromFile)
+                      LoadMultipleRSImageFromFile, LoadSingleRSImageFromFile, LoadTifImageWith6Channels,LoadNpyAsImage)
 # yapf: disable
 from .transforms import (CLAHE, AdjustGamma, Albu, BioMedical3DPad,
                          BioMedical3DRandomCrop, BioMedical3DRandomFlip,
@@ -19,7 +20,7 @@ from .transforms import (CLAHE, AdjustGamma, Albu, BioMedical3DPad,
 __all__ = [
     'LoadAnnotations', 'RandomCrop', 'BioMedical3DRandomCrop', 'SegRescale',
     'PhotoMetricDistortion', 'RandomRotate', 'AdjustGamma', 'CLAHE', 'Rerange',
-    'RGB2Gray', 'RandomCutOut', 'RandomMosaic', 'PackSegInputs',
+    'RGB2Gray', 'RandomCutOut', 'RandomMosaic', 'PackSegInputs', 'LoadTifImageWith6Channels', 'LoadNpyAsImage',
     'ResizeToMultiple', 'LoadImageFromNDArray', 'LoadBiomedicalImageFromFile',
     'LoadBiomedicalAnnotation', 'LoadBiomedicalData', 'GenerateEdge',
     'ResizeShortestEdge', 'BioMedicalGaussianNoise', 'BioMedicalGaussianBlur',

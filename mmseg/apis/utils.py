@@ -12,16 +12,22 @@ ImageType = Union[str, np.ndarray, Sequence[str], Sequence[np.ndarray]]
 def _preprare_data(imgs: ImageType, model: BaseModel):
 
     cfg = model.cfg
-    for t in cfg.test_pipeline:
-        if t.get('type') == 'LoadAnnotations':
-            cfg.test_pipeline.remove(t)
+    #for t in cfg.test_pipeline:
+        #if t.get('type') == 'LoadAnnotations':
+            #cfg.test_pipeline.remove(t)
 
     is_batch = True
     if not isinstance(imgs, (list, tuple)):
         imgs = [imgs]
         is_batch = False
 
-    if isinstance(imgs[0], np.ndarray):
+    '''if isinstance(imgs[0], np.ndarray):
+        cfg.test_pipeline[0]['type'] = 'LoadImageFromNDArray' ''' #my comment
+        # Replace the first transform with a custom NPY loader if the input is a .npy path
+    first_input = imgs[0]
+    if isinstance(first_input, str) and first_input.endswith('.npy'):
+        cfg.test_pipeline[0]['type'] = 'LoadNpyAsImage'
+    elif isinstance(first_input, np.ndarray):
         cfg.test_pipeline[0]['type'] = 'LoadImageFromNDArray'
 
     # TODO: Consider using the singleton pattern to avoid building
@@ -32,6 +38,10 @@ def _preprare_data(imgs: ImageType, model: BaseModel):
     for img in imgs:
         if isinstance(img, np.ndarray):
             data_ = dict(img=img)
+        #my code
+        elif isinstance(img, str) and img.endswith('.npy'):
+            data_ = dict(img_path=img)
+        #my code
         else:
             data_ = dict(img_path=img)
         data_ = pipeline(data_)

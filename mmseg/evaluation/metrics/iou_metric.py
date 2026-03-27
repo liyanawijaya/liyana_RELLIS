@@ -2,7 +2,7 @@
 import os.path as osp
 from collections import OrderedDict
 from typing import Dict, List, Optional, Sequence
-
+import cv2
 import numpy as np
 import torch
 from mmengine.dist import is_main_process
@@ -63,7 +63,9 @@ class IoUMetric(BaseMetric):
         if self.output_dir and is_main_process():
             mkdir_or_exist(self.output_dir)
         self.format_only = format_only
-
+        # Extract custom IoU arguments
+        self.fp_tolerance = kwargs.get('fp_tolerance', 0) #my code
+        self.tolerant_classes = kwargs.get('tolerant_classes', []) #my code
     def process(self, data_batch: dict, data_samples: Sequence[dict]) -> None:
         """Process one batch of data and data_samples.
 
@@ -81,9 +83,21 @@ class IoUMetric(BaseMetric):
             if not self.format_only:
                 label = data_sample['gt_sem_seg']['data'].squeeze().to(
                     pred_label)
+                '''
                 self.results.append(
                     self.intersect_and_union(pred_label, label, num_classes,
                                              self.ignore_index))
+                '''
+                self.results.append(    #my code
+                    self.intersect_and_union(
+                        pred_label,
+                        label,
+                        num_classes,
+                        self.ignore_index,
+                        fp_tolerance=self.fp_tolerance,
+                        tolerant_classes=self.tolerant_classes
+                    )#my code
+                )
             # format_result
             if self.output_dir is not None:
                 basename = osp.splitext(osp.basename(
@@ -159,12 +173,13 @@ class IoUMetric(BaseMetric):
         print_log('\n' + class_table_data.get_string(), logger=logger)
 
         return metrics
-
+    '''
     @staticmethod
+    
     def intersect_and_union(pred_label: torch.tensor, label: torch.tensor,
                             num_classes: int, ignore_index: int):
         """Calculate Intersection and Union.
-
+    
         Args:
             pred_label (torch.tensor): Prediction segmentation map
                 or predict result filename. The shape is (H, W).
@@ -180,8 +195,7 @@ class IoUMetric(BaseMetric):
                 all classes.
             torch.Tensor: The prediction histogram on all classes.
             torch.Tensor: The ground truth histogram on all classes.
-        """
-
+        #"""
         mask = (label != ignore_index)
         pred_label = pred_label[mask]
         label = label[mask]
@@ -198,7 +212,59 @@ class IoUMetric(BaseMetric):
             max=num_classes - 1).cpu()
         area_union = area_pred_label + area_label - area_intersect
         return area_intersect, area_union, area_pred_label, area_label
+    
+    '''
+    @staticmethod
+    def intersect_and_union(pred_label: torch.Tensor,
+                        label: torch.Tensor,
+                        num_classes: int,
+                        ignore_index: int,
+                        fp_tolerance: int = 0,
+                        tolerant_classes=None):
 
+        if tolerant_classes is None:
+            tolerant_classes = []
+
+        # Store full-size version for spatial operations
+        pred_label_full = pred_label.clone()
+        label_full = label.clone()
+
+        # Create mask for valid pixels (ignore_index masked out)
+        mask = (label != ignore_index)
+
+        # Apply mask and flatten for histogram counts
+        pred_label = pred_label[mask]
+        label = label[mask]
+
+        intersect = pred_label[pred_label == label]
+        area_intersect = torch.histc(intersect.float(), bins=num_classes, min=0, max=num_classes - 1).cpu()
+        area_pred_label = torch.histc(pred_label.float(), bins=num_classes, min=0, max=num_classes - 1).cpu()
+        area_label = torch.histc(label.float(), bins=num_classes, min=0, max=num_classes - 1).cpu()
+
+        if fp_tolerance > 0 and tolerant_classes:
+            # Use full-size arrays for dilation logic
+            pred_np = pred_label_full.cpu().numpy()
+            label_np = label_full.cpu().numpy()
+
+            for cls in tolerant_classes:
+                pred_binary = (pred_np == cls).astype(np.uint8)
+                gt_binary = (label_np == cls).astype(np.uint8)
+
+                kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * fp_tolerance + 1, 2 * fp_tolerance + 1))
+                gt_dilated = cv2.dilate(gt_binary, kernel)
+
+                tolerated_fp_mask = (pred_binary == 1) & (gt_dilated == 1)
+                tolerated_fp_count = np.sum(tolerated_fp_mask)
+
+                original_pred_count = np.sum(pred_binary)
+                corrected_fp_count = original_pred_count - tolerated_fp_count
+
+                # Update pred label count for this class
+                area_pred_label[cls] = torch.tensor(corrected_fp_count + area_intersect[cls])
+
+        area_union = area_pred_label + area_label - area_intersect
+        return area_intersect, area_union, area_pred_label, area_label
+    #'''
     @staticmethod
     def total_area_to_metrics(total_area_intersect: np.ndarray,
                               total_area_union: np.ndarray,
