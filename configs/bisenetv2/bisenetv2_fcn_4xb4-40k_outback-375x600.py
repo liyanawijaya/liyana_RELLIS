@@ -61,6 +61,6 @@ param_scheduler = [
 
 #optim_wrapper = dict(type='OptimWrapper', optimizer=optimizer) #my comment
 #train_dataloader = dict(batch_size=2, num_workers=4) #my comment
-train_dataloader = dict(batch_size=8, num_workers=4)# my code
+train_dataloader = dict(batch_size=4, num_workers=4)# my code
 val_dataloader = dict(batch_size=1, num_workers=4)
 test_dataloader = val_dataloader

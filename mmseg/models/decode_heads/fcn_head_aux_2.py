@@ -42,20 +42,17 @@ class FCNHeadUseAuxGT(FCNHead):
         return dict(loss_seg=loss)
 '''
 @MODELS.register_module()
-class FCNHeadUseAuxGT(FCNHead):
-    """FCNHead that uses data_sample.gt_sem_seg_aux for loss."""
+class FCNHeadUseAuxGT2(FCNHead):
+    """FCNHead that uses data_sample.gt_sem_seg_aux2 for loss."""
 
     def loss_by_feat(self, seg_logits, batch_data_samples):
         gts = []
 
         for s in batch_data_samples:
-            if not hasattr(s, 'gt_sem_seg_aux'):
-                raise KeyError(
-                    "gt_sem_seg_aux not found. "
-                    "Make sure LoadAuxAnnotations + PackSegInputs packs it."
-                )
+            if not hasattr(s, 'gt_sem_seg_aux2'):
+                raise KeyError("gt_sem_seg_aux2 not found.")
 
-            gt = s.gt_sem_seg_aux.data
+            gt = s.gt_sem_seg_aux2.data
 
             if gt.dim() == 3:
                 gt = gt.squeeze(0)

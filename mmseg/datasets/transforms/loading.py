@@ -52,9 +52,110 @@ class LoadTifImageWith6Channels(BaseTransform):
     def __repr__(self):
         return f'{self.__class__.__name__}(to_float32={self.to_float32})'
 #to add second GT
-'''
+
 
 @TRANSFORMS.register_module()
+class LoadAuxAnnotations:
+    """Load an auxiliary semantic segmentation GT mask.
+
+    Default:
+      - reads results['seg_map_path_aux']
+      - writes results['gt_seg_map_aux']
+      - appends 'gt_seg_map_aux' to seg_fields
+
+    For second aux GT:
+      use:
+        dict(
+            type='LoadAuxAnnotations',
+            aux_path_key='seg_map_path_aux2',
+            aux_map_key='gt_seg_map_aux2'
+        )
+    """
+
+    def __init__(self,
+                 reduce_zero_label=None,
+                 backend_args=None,
+                 imdecode_backend='pillow',
+                 aux_path_key='seg_map_path_aux',
+                 aux_map_key='gt_seg_map_aux'):
+        self.reduce_zero_label = reduce_zero_label
+        self.backend_args = backend_args.copy() if backend_args else None
+        self.imdecode_backend = imdecode_backend
+        self.aux_path_key = aux_path_key
+        self.aux_map_key = aux_map_key
+
+    def __call__(self, results: dict) -> dict:
+        if self.aux_path_key not in results:
+            raise KeyError(
+                f"{self.aux_path_key} not found in results. "
+                f"Add {self.aux_path_key} in dataset.data_prefix and/or dataset.load_data_list()."
+            )
+
+        aux_entry = results[self.aux_path_key]
+
+        # Case A: dataset already provides full per-sample aux path
+        if (
+            isinstance(aux_entry, str)
+            and os.path.splitext(aux_entry)[1].lower()
+            in ('.png', '.jpg', '.jpeg', '.tif', '.tiff')
+        ):
+            aux_path = aux_entry
+        else:
+            # Case B: aux_entry is a root folder; join with main GT filename
+            if 'seg_map_path' not in results:
+                raise KeyError(
+                    "seg_map_path not found in results; cannot infer aux filename."
+                )
+
+            fname = os.path.basename(results['seg_map_path'])
+            aux_path = os.path.join(aux_entry, fname)
+
+        # Load bytes -> mask
+        img_bytes = fileio.get(aux_path, backend_args=self.backend_args)
+        gt_aux = mmcv.imfrombytes(
+            img_bytes,
+            flag='unchanged',
+            backend=self.imdecode_backend
+        ).squeeze().astype(np.uint8)
+
+        # Use dataset setting unless explicitly passed to this transform
+        rz = (
+            results.get('reduce_zero_label', False)
+            if self.reduce_zero_label is None
+            else self.reduce_zero_label
+        )
+
+        if rz:
+            gt_aux[gt_aux == 0] = 255
+            gt_aux = gt_aux - 1
+            gt_aux[gt_aux == 254] = 255
+
+        # Apply label_map if present
+        if results.get('label_map', None) is not None:
+            gt_aux_copy = gt_aux.copy()
+            for old_id, new_id in results['label_map'].items():
+                gt_aux[gt_aux_copy == old_id] = new_id
+
+        # Save using selected key
+        results[self.aux_map_key] = gt_aux
+
+        if 'seg_fields' not in results:
+            results['seg_fields'] = []
+
+        results['seg_fields'].append(self.aux_map_key)
+
+        return results
+
+    def __repr__(self) -> str:
+        return (
+            f'{self.__class__.__name__}('
+            f'reduce_zero_label={self.reduce_zero_label}, '
+            f"imdecode_backend='{self.imdecode_backend}', "
+            f'backend_args={self.backend_args}, '
+            f"aux_path_key='{self.aux_path_key}', "
+            f"aux_map_key='{self.aux_map_key}')"
+        )
+'''
 class LoadAuxAnnotations:
     """Load a second semantic segmentation GT mask.
 
@@ -126,14 +227,14 @@ class LoadAuxAnnotations:
                 f'reduce_zero_label={self.reduce_zero_label}, '
                 f"imdecode_backend='{self.imdecode_backend}', "
                 f'backend_args={self.backend_args})')
-
+'''
 #to add second GT
 
 
 
     #^^^ my code
 
-'''
+
 @TRANSFORMS.register_module()
 class LoadAnnotations(MMCV_LoadAnnotations):
     """Load annotations for semantic segmentation provided by dataset.

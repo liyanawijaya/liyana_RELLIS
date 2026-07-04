@@ -1,9 +1,9 @@
 # model settings
 custom_imports = dict(
-    imports=['mmseg.models.custom.encoder_decoder_val_depth'],  # path to your custom model
+    imports=['mmseg.models.custom.encoder_decoder_val'],  # path to your custom model
     allow_failed_imports=False)
 norm_cfg = dict(type='SyncBN', requires_grad=True)
-"""
+
 data_preprocessor = dict(
     type='SegDataPreProcessor',
     #mean=[123.675, 116.28, 103.53], #my comments
@@ -24,7 +24,7 @@ data_preprocessor = dict(
     pad_val=0,
     seg_pad_val=255
 )
-
+"""
 model = dict(
     #type='EncoderDecoder',
     type='EncoderDecoderWithValLoss',
@@ -125,6 +125,10 @@ auxiliary_head = [
     # model training and testing settings
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
+randomness = dict(
+    seed=42,
+    deterministic=False
+)
 """
         dict(
             type='FCNHead',

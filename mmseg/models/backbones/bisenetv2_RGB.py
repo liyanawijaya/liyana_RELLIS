@@ -429,140 +429,7 @@ class SemanticBranch(BaseModule):
             semantic_outs.append(x)
         return semantic_outs
 
-class SimpleAttention(nn.Module):
-    def __init__(self, channels=128, reduction=16):
-        super().__init__()
 
-        # Channel attention
-        self.channel_att = nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
-            nn.Conv2d(channels, channels // reduction, kernel_size=1, bias=False),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(channels // reduction, channels, kernel_size=1, bias=False),
-            nn.Sigmoid()
-        )
-
-        # Spatial attention
-        self.spatial_att = nn.Sequential(
-            nn.Conv2d(2, 1, kernel_size=7, padding=3, bias=False),
-            nn.Sigmoid()
-        )
-
-    def forward(self, x):
-        # Channel attention
-        x = x * self.channel_att(x)
-
-        # Spatial attention
-        avg_out = torch.mean(x, dim=1, keepdim=True)
-        max_out, _ = torch.max(x, dim=1, keepdim=True)
-        spatial = torch.cat([avg_out, max_out], dim=1)
-
-        x = x * self.spatial_att(spatial)
-
-        return x   
-class SpatialAttention(nn.Module):
-    def __init__(self, kernel_size=7):
-        super().__init__()
-
-        assert kernel_size in (3, 7), "kernel_size should be 3 or 7"
-        padding = 3 if kernel_size == 7 else 1
-
-        self.spatial_att = nn.Sequential(
-            nn.Conv2d(
-                in_channels=2,
-                out_channels=1,
-                kernel_size=kernel_size,
-                padding=padding,
-                bias=False
-            ),
-            nn.Sigmoid()
-        )
-
-    def forward(self, x):
-        # x shape: [B, C, H, W]
-
-        avg_out = torch.mean(x, dim=1, keepdim=True)      # [B, 1, H, W]
-        max_out, _ = torch.max(x, dim=1, keepdim=True)    # [B, 1, H, W]
-
-        spatial = torch.cat([avg_out, max_out], dim=1)    # [B, 2, H, W]
-
-        att_map = self.spatial_att(spatial)               # [B, 1, H, W]
-
-        x = x * att_map                                   # [B, C, H, W]
-
-        return x   
-
-
-
-class RGBGuidedLiDARAttention(nn.Module):
-    def __init__(self, channels=128):
-        super().__init__()
-
-        self.attention = nn.Sequential(
-            nn.Conv2d(channels * 2, channels, kernel_size=1, bias=False),
-            nn.BatchNorm2d(channels),
-            nn.ReLU(inplace=True),
-
-            nn.Conv2d(channels, channels, kernel_size=1),
-            nn.Sigmoid()
-        )
-
-        self.fuse = nn.Sequential(
-            nn.Conv2d(channels * 2, channels, kernel_size=1, bias=False),
-            nn.BatchNorm2d(channels),
-            nn.ReLU(inplace=True)
-        )
-
-    def forward(self, rgb, lidar):
-        # rgb   : B × 128 × H × W
-        # lidar : B × 128 × H × W
-
-        x = torch.cat([lidar, rgb], dim=1)      # B × 256 × H × W
-
-        lidar_att = self.attention(x)           # B × 128 × H × W
-
-        lidar_guided = rgb * lidar_att        # B × 128 × H × W
-
-        fused = torch.cat([lidar_guided,rgb], dim=1)  # B × 256 × H × W
-
-        out = self.fuse(fused)                  # B × 128 × H × W
-
-        return out
-
-
-class AttentionFusion128(nn.Module):
-    def __init__(self, channels=128):
-        super().__init__()
-
-        self.att = nn.Sequential(
-            nn.Conv2d(channels * 2, channels, kernel_size=1, bias=False),
-            nn.BatchNorm2d(channels),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(channels, channels, kernel_size=1),
-            nn.Sigmoid()
-        )
-
-        self.out = nn.Sequential(
-            nn.Conv2d(channels * 2, channels, kernel_size=1, bias=False),
-            nn.BatchNorm2d(channels),
-            nn.ReLU(inplace=True)
-        )
-
-    def forward(self, feat1, feat2):
-        # feat1: B x 128 x H x W
-        # feat2: B x 128 x H x W
-
-        x = torch.cat([feat1, feat2], dim=1)   # B x 256 x H x W
-
-        att = self.att(x)                      # B x 128 x H x W
-
-        feat2_weighted = feat2 * att           # B x 128 x H x W
-
-        fused = torch.cat([feat1, feat2_weighted], dim=1)
-
-        out = self.out(fused)                  # B x 128 x H x W
-
-        return out
 class BGALayer(BaseModule):
     """Bilateral Guided Aggregation Layer to fuse the complementary information
     from both Detail Branch and Semantic Branch.
@@ -594,23 +461,9 @@ class BGALayer(BaseModule):
         super().__init__(init_cfg=init_cfg)
         #self.alpha = nn.Parameter(torch.tensor(0.0))  # scalar in ℝ
         #self.mix_conv = nn.Sequential(nn.Conv2d(C1 + C2, C_out, kernel_size=3, padding=1, bias=False),nn.BatchNorm2d(C_out),nn.ReLU(inplace=True))
-        ##self.mix_conv = nn.Sequential(nn.Conv2d(in_channels=384, out_channels=128, kernel_size=3, padding=1, bias=False),nn.BatchNorm2d(128),nn.ReLU(inplace=True))
+        #self.mix_conv = nn.Sequential(nn.Conv2d(in_channels=384, out_channels=128, kernel_size=3, padding=1, bias=False),nn.BatchNorm2d(128),nn.ReLU(inplace=True)) #conv_4
         self.out_channels = out_channels
         self.align_corners = align_corners
-        self.rgb_bn = nn.BatchNorm2d(128)
-        self.depth_bn = nn.BatchNorm2d(128)
-        self.detail_dwconv_depth = nn.Sequential(
-            DepthwiseSeparableConvModule(
-                in_channels=self.out_channels,
-                out_channels=self.out_channels,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-                dw_norm_cfg=norm_cfg,
-                dw_act_cfg=None,
-                pw_norm_cfg=None,
-                pw_act_cfg=None,
-            ))
         self.detail_dwconv = nn.Sequential(
             DepthwiseSeparableConvModule(
                 in_channels=self.out_channels,
@@ -623,18 +476,6 @@ class BGALayer(BaseModule):
                 pw_norm_cfg=None,
                 pw_act_cfg=None,
             ))
-        self.detail_down_depth = nn.Sequential(
-            ConvModule(
-                in_channels=self.out_channels,
-                out_channels=self.out_channels,
-                kernel_size=3,
-                stride=2,
-                padding=1,
-                bias=False,
-                conv_cfg=conv_cfg,
-                norm_cfg=norm_cfg,
-                act_cfg=None),
-            nn.AvgPool2d(kernel_size=3, stride=2, padding=1, ceil_mode=False))
         self.detail_down = nn.Sequential(
             ConvModule(
                 in_channels=self.out_channels,
@@ -647,7 +488,6 @@ class BGALayer(BaseModule):
                 norm_cfg=norm_cfg,
                 act_cfg=None),
             nn.AvgPool2d(kernel_size=3, stride=2, padding=1, ceil_mode=False))
-        
         self.semantic_conv = nn.Sequential(
             ConvModule(
                 in_channels=self.out_channels,
@@ -659,17 +499,6 @@ class BGALayer(BaseModule):
                 conv_cfg=conv_cfg,
                 norm_cfg=norm_cfg,
                 act_cfg=None))
-        self.semantic_conv_depth = nn.Sequential(
-            ConvModule(
-                in_channels=self.out_channels,
-                out_channels=self.out_channels,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-                bias=False,
-                conv_cfg=conv_cfg,
-                norm_cfg=norm_cfg,
-                act_cfg=None))       
         self.semantic_dwconv = nn.Sequential(
             DepthwiseSeparableConvModule(
                 in_channels=self.out_channels,
@@ -683,28 +512,6 @@ class BGALayer(BaseModule):
                 pw_act_cfg=None,
             ))
         
-      
-        self.semantic_dwconv_depth = nn.Sequential(
-            DepthwiseSeparableConvModule(
-                in_channels=self.out_channels,
-                out_channels=self.out_channels,
-                kernel_size=3,
-                stride=1,
-                padding=1,
-                dw_norm_cfg=norm_cfg,
-                dw_act_cfg=None,
-                pw_norm_cfg=None,
-                pw_act_cfg=None,
-            ))
-        
-        """
-        self.thicker = nn.Sequential(
-            nn.Conv2d(self.out_channels, self.out_channels, 1, bias=False),
-            nn.BatchNorm2d(self.out_channels),
-            nn.SiLU(inplace=True),
-        )
-        """
-        """
         self.conv = ConvModule(
             in_channels=self.out_channels,
             out_channels=self.out_channels,
@@ -716,196 +523,41 @@ class BGALayer(BaseModule):
             norm_cfg=norm_cfg,
             act_cfg=act_cfg,
         )
-        """
-        self.mix_conv = nn.Sequential(
-            nn.Conv2d(
-                in_channels=256,
-                out_channels=128,
-                kernel_size=3,
-                padding=1,
-                bias=False
-            ),
-            nn.BatchNorm2d(128),
-            nn.SiLU(inplace=True)
-        )
-        self.mix_conv_1 = nn.Sequential(
-            nn.Conv2d(
-                in_channels=256,
-                out_channels=128,
-                kernel_size=3,
-                padding=1,
-                bias=False
-            ),
-            nn.BatchNorm2d(128),
-            nn.SiLU(inplace=True)
-        )
-        self.mix_conv_2 = nn.Sequential(
-            nn.Conv2d(
-                in_channels=128*2,
-                out_channels=128,
-                kernel_size=3,
-                padding=1,
-                bias=False
-            ),
-            nn.BatchNorm2d(128),
-            nn.SiLU(inplace=True)
-        )
-        self.mix_conv_att = nn.Sequential(
-            nn.Conv2d(128, 128, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            SpatialAttention(kernel_size=7)
-        )
-        self.fusion_layer = RGBGuidedLiDARAttention(channels=128)
-        self.fusion = AttentionFusion128(channels=128)
         
-        
-
-        
-    def forward(self, x_d, x_depth, x_s, x_my):
+    def forward(self, x_d, x_s):
         #detail_dwconv = self.detail_dwconv(x_d) # my comment
-
         detail_dwconv = self.detail_dwconv(x_d) # my comment
-        detail_dwconv_depth= self.detail_dwconv_depth(x_depth)
         detail_down = self.detail_down(x_d)
         semantic_conv = self.semantic_conv(x_s)
-        semantic_dwconv = self.semantic_dwconv(x_s) #my comment
-        detail_down_depth=self.detail_down_depth(x_depth)
-        semantic_dwconv_depth=self.semantic_dwconv_depth(x_my)
-        #semantic_dwconv = self.semantic_dwconv(x_s) 
-        depth_conv = self.semantic_conv_depth(x_my) 
-        
-        #dil = torch.nn.functional.max_pool2d(rgb_dwconv, kernel_size=5, stride=1, padding=5 // 2)
-        #rgb_dwconv=rgb_dwconv+self.thicker(dil)
+        #semantic_dwconv = self.semantic_dwconv(x_s) #my comment
+        semantic_dwconv = self.semantic_dwconv(x_s) 
+        #depth_dwconv = self.semantic_dwconv(x_my) #conv_4
         semantic_conv = resize(
             input=semantic_conv,
             size=detail_dwconv.shape[2:],
             mode='bilinear',
             align_corners=self.align_corners)
-        depth_conv = resize(
-            input=depth_conv,
-            size=detail_dwconv_depth.shape[2:],
-            mode='bilinear',
-            align_corners=self.align_corners)
         #fuse_1 = detail_dwconv * torch.sigmoid(semantic_conv) # my comment
-        #fuse_1 = detail_dwconv * torch.sigmoid(semantic_conv) # my comment
-        #####fuse_1 = detail_dwconv * torch.sigmoid(semantic_conv) #
-        #final fuse_1 = detail_dwconv * torch.sigmoid(semantic_conv) #
-        #final fuse_3 = detail_down * torch.sigmoid(semantic_dwconv) #my comment
-        ###fuse_2 = semantic_dwconv #my comment
-        #$$fuse_2 = semantic_dwconv * torch.sigmoid(detail_down)#my comment
-        #final fuse_2 =(detail_dwconv_depth)*torch.sigmoid(depth_conv)
-        #final fuse_4 = detail_down_depth * torch.sigmoid(semantic_dwconv_depth)
-        
-        fuse_1 = detail_dwconv * torch.sigmoid(semantic_conv) #
-        fuse_2 = detail_down * torch.sigmoid(semantic_dwconv) #my comment
-        ###fuse_2 = semantic_dwconv #my comment
-        #$$fuse_2 = semantic_dwconv * torch.sigmoid(detail_down)#my comment
-        fuse_3 =(detail_dwconv_depth)*torch.sigmoid(depth_conv)
-        fuse_4 = detail_down_depth * torch.sigmoid(semantic_dwconv_depth)
-        
-        #fuse_1 = detail_dwconv  # new
-        #fuse_2 = semantic_dwconv #new
-        ###fuse_2 = semantic_dwconv #my comment
-        #$$fuse_2 = semantic_dwconv * torch.sigmoid(detail_down)#my comment
-        #fuse_3 =detail_dwconv_depth #new
-        #fuse_4 = semantic_dwconv_depth #new
-        ###fuse_3 = semantic_dwconv * torch.sigmoid(depth_dwconv)
-        #######fuse_3 =  semantic_dwconv * torch.sigmoid(rgb_dwconv)
-        #fuse_4= detail_down * torch.sigmoid(depth_dwconv)
-        ###fuse_3 =  depth_dwconv
-        #fuse_2 = semantic_dwconv
-        #fuse_3 = detail_down * depth_dwconv
-        ##fuse_3 = semantic_dwconv * depth_dwconv
-        ##fuse_3 =   detail_down * depth_dwconv
-        ###fuse_3 =   fuse_2 * torch.sigmoid(depth_dwconv)
-        #fuse_3 = torch.sigmoid(depth_dwconv)
+        fuse_1 = detail_dwconv * torch.sigmoid(semantic_conv) # my comment
+        fuse_2 = detail_down * torch.sigmoid(semantic_dwconv)
+        #fuse_3 = detail_down * torch.sigmoid(depth_dwconv) #conv_4
         #alpha = torch.sigmoid(self.alpha)    # self.alpha = nn.Parameter(torch.tensor(0.0))
         #gate  = torch.sigmoid(semantic_dwconv)
         #fuse_2 = (1 - alpha) * detail_down + alpha * (detail_down * gate)
-        
-        fuse_2_up = resize(
+        fuse_2 = resize(
             input=fuse_2,
             size=fuse_1.shape[2:],
             mode='bilinear',
             align_corners=self.align_corners)
-        
         #fuse_3 = resize(
-        #    input=fuse_3,
-        #    size=fuse_1.shape[2:],
-        #    mode='bilinear',
-        #    align_corners=self.align_corners)
-        fuse_4_up = resize(
-            input=fuse_4,
-            size=fuse_1.shape[2:],
-            mode='bilinear',
-            align_corners=self.align_corners)
-        #fuse_1 = self.rgb_bn(fuse_1)
-        #fuse_2 = self.depth_bn(fuse_2)
-        #output = self.conv(fuse_1 + fuse_2)
-        ##x = torch.cat([torch.sigmoid(fuse_1),torch.sigmoid(fuse_2)], dim=1)              # [B, C+C2, H, W]
-        ##output_1 = fuse_1                            # nn.Conv2d(C+C2, C_out, kernel_size=1)
-        x = torch.cat([(fuse_1),(fuse_3)], dim=1) 
-        x_1 = torch.cat([(fuse_2),(fuse_4)], dim=1) 
-   
-        output_1 = self.mix_conv(x) #detail resolution
-        output_2 = self.mix_conv_1(x_1) #semantic resolution
-        #output_1_new=fuse_1+fuse_2_up #new
-        #output_2_new=fuse_3+fuse_4_up #new
-        #output_1 = fuse_1+fuse_3 #detail resolution
-        #output_2 = fuse_2+fuse_4 #semantic resolution
-        output_2_up = resize( #new
-            input=output_2,
-            size=output_1.shape[2:],
-            mode='bilinear',
-            align_corners=self.align_corners)
-        
-        #fuse_3 = resize(
-        #    input=fuse_3,
-        #    size=fuse_1.shape[2:],
-        #    mode='bilinear',
-        #    align_corners=self.align_corners)
-        output_1_down = resize( #new
-            input=output_1,
-            size=output_2.shape[2:],
-            mode='bilinear',
-            align_corners=self.align_corners)
-        
-        
-        output_2_resized = resize( #new
-            input=output_2,
-            size=output_1.shape[2:],
-            mode='bilinear',
-            align_corners=self.align_corners)
-        output_com = torch.cat([(torch.sigmoid(output_1)),(torch.sigmoid(output_2_resized))], dim=1) #new
-        #output_com = self.mix_conv_2(output_com)
-        #output_com=torch.sigmoid(output_1)*(output_2_up) 
-        
-        #output_1=output_1*torch.sigmoid(output_2_up) #new
-        #output_2=output_1_down*torch.sigmoid(output_2) #new
-
-        #final output_com=torch.sigmoid(output_1)*torch.sigmoid(output_2)
-        
-        #final output_3 = torch.cat([(torch.sigmoid(output_1)),(torch.sigmoid(output_2))], dim=1) #new
-        output_3 = torch.cat([(torch.sigmoid(output_1)),(torch.sigmoid(output_2_up))], dim=1) #new
-        #output_3 =self.mix_conv_2(output_3) #new
-        
-        #output_3=output_1+torch.sigmoid(output_1)*torch.sigmoid(output_2)
-        #lastoutput_3=torch.sigmoid(output_1)+torch.sigmoid(output_2)+torch.sigmoid(output_1)*torch.sigmoid(output_2)
-        #finaloutput_3=torch.sigmoid(output_1)+torch.sigmoid(output_2)+torch.sigmoid(output_1)*torch.sigmoid(output_2)
-        #output_3=torch.sigmoid(output_1)*torch.sigmoid(output_2)
-        #output_3=output_1+torch.sigmoid(output_1)*output_2
-        #output_3=output_1
-        #output_3 = torch.cat([(output_1),(output_3)], dim=1) 
-        #output_3 = torch.cat([(torch.sigmoid(output_1)), torch.sigmoid((output_2))], dim=1)
-        #output_3=output_1+self.mix_conv_2(output_3)
-        #output_3 = self.fusion_layer(output_1, output_3)
-
-        #output_3=self.mix_conv_att(output_3)
-        #output_3 = self.fusion(output_3, output_1)
-        #output_3=self.mix_conv_2(output_3)
-        #lastreturn output_2, output_3
-        return output_2, output_3, output_com
+            #input=fuse_3,
+            #size=fuse_1.shape[2:],
+            #mode='bilinear',
+            #align_corners=self.align_corners)
+        output = self.conv(fuse_1 + fuse_2)
+        #x = torch.cat([fuse_1, fuse_2, fuse_3], dim=1)  #conv_4            # [B, C+C2, H, W]
+        #output = self.mix_conv(x)  #conv_4                          # nn.Conv2d(C+C2, C_out, kernel_size=1)
+        return output
 
 
 @MODELS.register_module()
@@ -945,14 +597,13 @@ class BiSeNetV2(BaseModule):
 
     def __init__(self,
                  #C=128, #my code
-                 #in_channels=3, # my comments
-                 in_channels=6, #my code
+                 in_channels=3, # my comments
+                 #in_channels=6, #my code
                  detail_channels=(64, 64, 128),
                  semantic_channels=(16, 32, 64, 128),
                  semantic_expansion_ratio=6,
                  bga_channels=128,
-                 #lastout_indices=(0, 1, 2, 3, 4, 5, 6),
-                 out_indices=(0, 1, 2, 3, 4, 5, 6, 7),
+                 out_indices=(0, 1, 2, 3, 4),
                  align_corners=False,
                  conv_cfg=None,
                  norm_cfg=dict(type='BN'),
@@ -977,15 +628,13 @@ class BiSeNetV2(BaseModule):
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
         self.act_cfg = act_cfg
-        
+        '''
         #my code-->
         self.detail = DetailBranch(self.detail_channels, self.in_channels//2)
-        self.detail_depth = DetailBranch(self.detail_channels, self.in_channels//2)
         self.semantic = SemanticBranch(self.semantic_channels,
                                        self.in_channels//2,
                                        self.semantic_expansion_ratio)
-        
-        self.semantic_rgb = SemanticBranch(self.semantic_channels,
+        self.semantic_new = SemanticBranch(self.semantic_channels,
                                        self.in_channels//2,
                                        self.semantic_expansion_ratio)
         
@@ -1001,8 +650,8 @@ class BiSeNetV2(BaseModule):
 
     def forward(self, x):
         #  stole refactoring code from Coin Cheung, thanks
-        #x_detail = self.detail(x) # my comments
-        #x_semantic_lst = self.semantic(x) # my comments
+        x_detail = self.detail(x) # my comments
+        x_semantic_lst = self.semantic(x) # my comments
         """
         #-> my code
         # Assume input x is [B, 6, H, W] => split into 2x [B, 3, H, W]
@@ -1014,52 +663,36 @@ class BiSeNetV2(BaseModule):
         x_semantic_lst = self.semantic(x_semantic_input)
         #^^^ my code
         #"""
-        #"""
+        """
         #latest
         #-> my code to include depth and rgb semantic branch
         # Assume input x is [B, 6, H, W] => split into 2x [B, 3, H, W]
         assert x.shape[1] == 6, f"Expected 6 channels, but got {x.shape[1]}"
-        #x_detail_input = x[:, :3, :, :]   
-        x_detail_input=x[:, :3,:, :]
-        x_detail_depth=x[:, 3:, :]
-        #x_detail_depth=x[:, 3:,:, :]
-  
-        x_semantic_input_depth = x[:,3: , :, :] 
-        x_semantic_input_rgb =  x[:, :3,:, :] 
+        x_detail_input = x[:, :3, :, :]     
+        x_semantic_input_depth = x[:, 3:, :, :] 
+        x_semantic_input_rgb =  x[:, :3, :, :] 
         
         
         x_detail = self.detail(x_detail_input)
-        x_depth =self.detail_depth(x_detail_depth)
-        x_semantic_lst_1 = self.semantic(x_semantic_input_rgb)
-        x_semantic_lst_2 = self.semantic_rgb(x_semantic_input_depth)
-        #x_semantic_lst_2 = self.semantic_rgb(x_semantic_input_rgb)
+        x_semantic_lst_1 = self.semantic_new(x_semantic_input_depth)
+        x_semantic_lst_2 = self.semantic(x_semantic_input_rgb)
         #x_cat = torch.cat([x_semantic_lst_2[-1], x_semantic_lst_1[-1]], dim=1)   #conv_4   # (N, 2C, H, W)
         #x_semantic_lst = self.fuser(x_cat) #conv_4
         #x_semantic_lst=x_semantic_lst_1[-1]*x_semantic_lst_1[-1]
-        """
-        import torch.nn.functional as F
-
-        x_detail = F.interpolate(
-            x_detail,
-            size=x_semantic_lst_2[3].shape[2:],
-            mode='bilinear',
-            align_corners=False
-        )
-        """
-        #x_head = self.bga(x_detail, x_semantic_lst_1[-1]) #my comment
-        #x_head_2, 
-        x_head_2, x_head_3, x_head_com= self.bga(x_detail, x_depth, x_semantic_lst_1[-1], x_semantic_lst_2[-1])
-        #outs = [x_head] + x_semantic_lst_2[2:4]+x_semantic_lst_1[2:4] #conv_5
-        outs = [x_head_3]+[x_head_2] +[x_head_com] + x_semantic_lst_1[1:4] + x_semantic_lst_2[2:4]
+        
+        
+        x_head = self.bga(x_detail, x_semantic_lst_2[-1], x_semantic_lst_1[-1])
+        outs = [x_head] + x_semantic_lst_2[2:4]+x_semantic_lst_1[2:4]
         #outs = [x_head] + x_semantic_lst_2[:-1]+x_semantic_lst_1[:-1] #conv_4
 
-        #""" latest
-    
+        """ #latest
+        x_head = self.bga(x_detail, x_semantic_lst[-1]) #my comment
         #x_fused = x_head + x_detail  #my code  
         #outs = [x_fused] + x_semantic_lst[:-1] #my comment#
         #x_head = self.bga(x_detail, x_semantic_lst[-1])
-        #outs = [x_head] + x_semantic_lst[:-1]
+        outs = [x_head] + x_semantic_lst[:-1]
         #outs = [outs[i] for i in self.out_indices]
+        
         outs = [outs[i] for i in self.out_indices]
         return tuple(outs)
         

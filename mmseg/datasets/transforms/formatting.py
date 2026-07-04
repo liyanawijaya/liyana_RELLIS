@@ -8,10 +8,108 @@ from mmengine.structures import PixelData
 
 from mmseg.registry import TRANSFORMS
 from mmseg.structures import SegDataSample
-'''
+
 @TRANSFORMS.register_module()
 # Copyright (c) OpenMMLab. All rights reserved.
+class PackSegInputs(BaseTransform):
 
+    def __init__(self,
+                 meta_keys=('img_path',
+                            'seg_map_path',
+                            'seg_map_path_aux',
+                            'seg_map_path_aux2',   # ✅ added
+                            'ori_shape', 'img_shape', 'pad_shape',
+                            'scale_factor', 'flip', 'flip_direction',
+                            'reduce_zero_label')):
+        self.meta_keys = meta_keys
+
+    def transform(self, results: dict) -> dict:
+        packed_results = dict()
+
+        # -------------------- INPUT --------------------
+        if 'img' in results:
+            img = results['img']
+            if len(img.shape) < 3:
+                img = np.expand_dims(img, -1)
+
+            if not img.flags.c_contiguous:
+                img = to_tensor(np.ascontiguousarray(img.transpose(2, 0, 1)))
+            else:
+                img = to_tensor(img.transpose(2, 0, 1)).contiguous()
+
+            packed_results['inputs'] = img
+
+        data_sample = SegDataSample()
+
+        # -------------------- MAIN GT --------------------
+        if 'gt_seg_map' in results:
+            gt = results['gt_seg_map']
+
+            if gt.ndim == 2:
+                data = to_tensor(gt[None, ...].astype(np.int64))
+            else:
+                warnings.warn(f'gt_seg_map expected 2D but got {gt.shape}')
+                data = to_tensor(gt.astype(np.int64))
+
+            data_sample.gt_sem_seg = PixelData(data=data)
+
+        # -------------------- AUX GT 1 --------------------
+        if 'gt_seg_map_aux' in results:
+            gt_aux = results['gt_seg_map_aux']
+
+            if gt_aux.ndim == 2:
+                data_aux = to_tensor(gt_aux[None, ...].astype(np.int64))
+            else:
+                warnings.warn(f'gt_seg_map_aux expected 2D but got {gt_aux.shape}')
+                data_aux = to_tensor(gt_aux.astype(np.int64))
+
+            data_sample.set_data(dict(
+                gt_sem_seg_aux=PixelData(data=data_aux)
+            ))
+
+        # -------------------- AUX GT 2 ✅ --------------------
+        if 'gt_seg_map_aux2' in results:
+            gt_aux2 = results['gt_seg_map_aux2']
+
+            if gt_aux2.ndim == 2:
+                data_aux2 = to_tensor(gt_aux2[None, ...].astype(np.int64))
+            else:
+                warnings.warn(f'gt_seg_map_aux2 expected 2D but got {gt_aux2.shape}')
+                data_aux2 = to_tensor(gt_aux2.astype(np.int64))
+
+            data_sample.set_data(dict(
+                gt_sem_seg_aux2=PixelData(data=data_aux2)
+            ))
+
+        # -------------------- EDGE / DEPTH --------------------
+        if 'gt_edge_map' in results:
+            data_sample.set_data(dict(
+                gt_edge_map=PixelData(
+                    data=to_tensor(results['gt_edge_map'][None, ...].astype(np.int64))
+                )
+            ))
+
+        if 'gt_depth_map' in results:
+            data_sample.set_data(dict(
+                gt_depth_map=PixelData(
+                    data=to_tensor(results['gt_depth_map'][None, ...])
+                )
+            ))
+
+        # -------------------- META --------------------
+        img_meta = {}
+        for key in self.meta_keys:
+            if key in results:
+                img_meta[key] = results[key]
+
+        data_sample.set_metainfo(img_meta)
+
+        packed_results['data_samples'] = data_sample
+        return packed_results
+
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}(meta_keys={self.meta_keys})'
+'''
 class PackSegInputs(BaseTransform):
 
     def __init__(self,
@@ -87,7 +185,7 @@ class PackSegInputs(BaseTransform):
 
 '''
 
-
+'''
 @TRANSFORMS.register_module()
 class PackSegInputs(BaseTransform):
     """Pack the inputs data for the semantic segmentation.
@@ -191,3 +289,4 @@ class PackSegInputs(BaseTransform):
         repr_str += f'(meta_keys={self.meta_keys})'
         return repr_str
 
+'''
