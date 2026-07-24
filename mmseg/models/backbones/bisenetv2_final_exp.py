@@ -704,154 +704,18 @@ class LidarGuidedFusion(nn.Module):
         )
 
         # LiDAR attention identifies important RGB locations/features
-        #rgb_weighted = rgb_feat * attention
-        lidar_weighted = lidar_feat * attention
+        rgb_weighted = rgb_feat * attention
+
         # Combine LiDAR-guided RGB features with LiDAR features
-        #fusion_input = torch.cat(
-        #    [rgb_weighted, lidar_feat],
-        #    dim=1
-        #)
-
-        #fused = self.fusion(fusion_input)
-
-        return lidar_weighted
-
-
-
-class EfficientDepthRGBFusion(nn.Module):
-    def __init__(self, channels=128, reduction=4):
-        super().__init__()
-
-        hidden_channels = channels // reduction
-
-        # Lightweight depth-derived channel-specific spatial attention
-        self.depth_attention = nn.Sequential(
-            nn.Conv2d(
-                channels,
-                hidden_channels,
-                kernel_size=1,
-                bias=False
-            ),
-            nn.BatchNorm2d(hidden_channels),
-            nn.ReLU(inplace=True),
-
-            nn.Conv2d(
-                hidden_channels,
-                channels,
-                kernel_size=3,
-                padding=1,
-                groups=hidden_channels,
-                bias=False
-            ),
-            nn.BatchNorm2d(channels),
-            nn.Sigmoid()
-        )
-        self.rgb_attention = nn.Sequential(
-            nn.Conv2d(
-                channels,
-                hidden_channels,
-                kernel_size=1,
-                bias=False
-            ),
-            nn.BatchNorm2d(hidden_channels),
-            nn.ReLU(inplace=True),
-
-            nn.Conv2d(
-                hidden_channels,
-                channels,
-                kernel_size=3,
-                padding=1,
-                groups=hidden_channels,
-                bias=False
-            ),
-            nn.BatchNorm2d(channels),
-            nn.Sigmoid()
-        )
-        # Project each modality before fusion
-        self.rgb_projection = nn.Sequential(
-            nn.Conv2d(channels, channels, 1, bias=False),
-            nn.BatchNorm2d(channels),
-            nn.ReLU(inplace=True)
-        )
-
-        self.depth_projection = nn.Sequential(
-            nn.Conv2d(channels, channels, 1, bias=False),
-            nn.BatchNorm2d(channels),
-            nn.ReLU(inplace=True)
-        )
-        self.common_projection = nn.Sequential(
-            nn.Conv2d(channels, channels, 1, bias=False),
-            nn.BatchNorm2d(channels),
-            nn.ReLU(inplace=True)
-        )
-        self.mix_channels = nn.Sequential(
-            nn.Conv2d(
-                in_channels=256,
-                out_channels=128,
-                kernel_size=3,
-                padding=1,
-                bias=False
-            ),
-            nn.BatchNorm2d(128),
-            nn.SiLU(inplace=True)
-        )
-        # Efficient fusion: 256 channels -> 128 channels
-        self.fusion = nn.Sequential(
-            nn.Conv2d(
-                channels * 2,
-                channels,
-                kernel_size=1,
-                bias=False
-            ),
-            nn.BatchNorm2d(channels),
-            nn.ReLU(inplace=True),
-
-            nn.Conv2d(
-                channels,
-                channels,
-                kernel_size=3,
-                padding=1,
-                groups=channels,
-                bias=False
-            ),
-            nn.BatchNorm2d(channels),
-            nn.ReLU(inplace=True)
-        )
-
-    def forward(self, rgb_feat, depth_feat, output_com):
-        """
-        rgb_feat:   [B, 128, H, W]
-        depth_feat: [B, 128, H, W]
-        """
-
-        if rgb_feat.shape != depth_feat.shape:
-            raise ValueError(
-                f"Feature shapes must match, but received "
-                f"RGB {tuple(rgb_feat.shape)} and "
-                f"depth {tuple(depth_feat.shape)}."
-            )
-
-        rgb_proj = self.rgb_projection(rgb_feat)
-        depth_proj = self.depth_projection(depth_feat)
-
-        # Shape: [B, 128, H, W]
-        depth_attention = self.depth_attention(depth_proj)
-        rgb_attention = self.rgb_attention(rgb_proj)
-        common = self.common_projection(output_com)
-        # Residual attention prevents complete depth suppression
-        rgb_weighted = rgb_proj * (0.5 + depth_attention)
-        depth_weighted = depth_proj * (0.5 + rgb_attention)
         fusion_input = torch.cat(
-            [rgb_weighted+output_com, depth_weighted+output_com],
+            [rgb_weighted, lidar_feat],
             dim=1
         )
 
         fused = self.fusion(fusion_input)
 
-        # Preserve the RGB semantic path
-        fused = fused
+        return rgb_weighted
 
-        return fused
 class BGALayer(BaseModule):
     """Bilateral Guided Aggregation Layer to fuse the complementary information
     from both Detail Branch and Semantic Branch.
@@ -1053,7 +917,6 @@ class BGALayer(BaseModule):
             common_channels=128
         )
         self.lidar_guided= LidarGuidedFusion(channels=128)
-        self.lidar_att= EfficientDepthRGBFusion()
         
     def forward(self, x_d, x_depth, x_s, x_my):
         #detail_dwconv = self.detail_dwconv(x_d) # my comment
@@ -1094,7 +957,7 @@ class BGALayer(BaseModule):
         fuse_2 = detail_down * torch.sigmoid(semantic_dwconv) #my comment
         ###fuse_2 = semantic_dwconv #my comment
         #$$fuse_2 = semantic_dwconv * torch.sigmoid(detail_down)#my comment
-        fuse_3 =(detail_dwconv_depth)* torch.sigmoid(depth_conv)
+        fuse_3 =(detail_dwconv_depth)*torch.sigmoid(depth_conv)
         fuse_4 = detail_down_depth * torch.sigmoid(semantic_dwconv_depth)
         
         
@@ -1178,7 +1041,6 @@ class BGALayer(BaseModule):
    
         output_1 = self.mix_conv(x) #detail resolution
         output_2 = self.mix_conv_1(x_1) #semantic resolution
-        #output_2 = fuse_3+fuse_4_up
         #output_1=torch.sigmoid(fuse_1)*fuse_3
         #output_2=torch.sigmoid(fuse_2)*fuse_4
         
@@ -1215,7 +1077,7 @@ class BGALayer(BaseModule):
         #    output_2_up
         #)
         
-        #attention = self.lidar_guided(torch.sigmoid(output_1), torch.sigmoid(output_2_up))
+        #attention, fused = self.lidar_guided(torch.sigmoid(output_1), torch.sigmoid(output_2_up))
 
         #output_com = torch.cat([(torch.sigmoid(output_1)),(torch.sigmoid(output_2_resized))], dim=1) #new
         #output_com = self.mix_conv_2(output_com)
@@ -1226,24 +1088,20 @@ class BGALayer(BaseModule):
         #output_1=output_1*torch.sigmoid(output_2_up) #new
         #output_2=output_1_down*torch.sigmoid(output_2) #new
 
-        output_com=torch.sigmoid(output_2_up)*torch.sigmoid(output_1)
-        output_add=torch.sigmoid(output_1)+torch.sigmoid(output_2_up)
-        fused = self.lidar_att(torch.sigmoid(output_1), torch.sigmoid(output_2_up), output_com)       
-        
-        #output_3=output_add
-        #output_com=torch.sigmoid(output_1)*torch.sigmoid(output_2_up)
-        #output_3 = torch.cat([(torch.sigmoid(output_1)+output_com), torch.sigmoid(output_2_up)+output_com], dim=1) #new
-        #output_3=torch.sigmoid(output_1)+torch.sigmoid(output_2_up)+output_com
+        #output_com=torch.sigmoid(output_1)
+        output_com=torch.sigmoid(output_1*output_2_up)
+        #output_3 = torch.cat([(torch.sigmoid(output_1)+output_com),torch.sigmoid(output_2_up)+output_com], dim=1) #new
+        output_3=torch.sigmoid(output_1)+torch.sigmoid(output_2_up)+output_com
         #finaloutput_3 = torch.cat([(torch.sigmoid(output_1)*output_2_up),(torch.sigmoid(output_2_up)*output_1)], dim=1) #new
         #output_3 =self.mix_conv_2(torch.sigmoid(output_1)+common) #new
         #output_3 = torch.cat([(torch.sigmoid(output_1)),torch.sigmoid(fused)], dim=1)
         #output_3 = torch.cat([(torch.sigmoid(fuse_2)),torch.sigmoid(fuse_4)], dim=1)
         #output_3 =self.mix_conv_2(output_3)
-        ##today output_3 = torch.cat([(torch.sigmoid(output_1)+output_com),torch.sigmoid(output_2_up)+output_com], dim=1)
+        #output_3 = torch.cat([(torch.sigmoid(output_1)),torch.sigmoid(output_2_up)], dim=1)
         ####output_com= torch.sigmoid(output_1*output_2_up)
         ####output_3 = torch.cat([(torch.sigmoid(output_1)+output_com),torch.sigmoid(output_2_up)+output_com], dim=1)
         #output_3=torch.sigmoid(output_1)+torch.sigmoid(output_2_up)+output_com
-        ##today output_3=self.mix_conv_2(output_3)
+        ####output_3=self.mix_conv_2(output_3)
         #output_3=output_1+torch.sigmoid(output_1)*torch.sigmoid(output_2)
         #lastoutput_3=torch.sigmoid(output_1)+torch.sigmoid(output_2)+torch.sigmoid(output_1)*torch.sigmoid(output_2)
         #finaloutput_3=torch.sigmoid(output_1)+torch.sigmoid(output_2)+torch.sigmoid(output_1)*torch.sigmoid(output_2)
@@ -1254,14 +1112,14 @@ class BGALayer(BaseModule):
         #output_3 = torch.cat([(torch.sigmoid(output_1)), torch.sigmoid((output_2))], dim=1)
         #output_3=output_1+self.mix_conv_2(output_3)
         #output_3 = self.fusion_layer(output_1, output_3)
-        
+
         #output_3=self.mix_conv_att(output_3)
         #output_3 = self.fusion(output_3, output_1)
         #output_3=self.mix_conv_2(output_3)
         #lastreturn output_2, output_3
         #return torch.sigmoid(fuse_2_up)*torch.sigmoid(fuse_4_up), output_3, output_com
         #return output_2_up, output_3, output_com
-        return fused, output_com
+        return output_3, output_com
 
 @MODELS.register_module()
 class BiSeNetV2(BaseModule):
@@ -1404,10 +1262,10 @@ class BiSeNetV2(BaseModule):
         #x_head = self.bga(x_detail, x_semantic_lst_1[-1]) #my comment
         #x_head_2, 
         #finalx_head_2, x_head_3, x_head_com= self.bga(x_detail, x_depth, x_semantic_lst_1[-1], x_semantic_lst_2[-1])
-        output_3, output_add= self.bga(x_detail, x_depth, x_semantic_lst_1[-1], x_semantic_lst_2[-1])
+        output_3, output_com= self.bga(x_detail, x_depth, x_semantic_lst_1[-1], x_semantic_lst_2[-1])
         #outs = [x_head] + x_semantic_lst_2[2:4]+x_semantic_lst_1[2:4] #conv_5
         #final outs = [x_head_3]+[x_head_2] +[x_head_com] + x_semantic_lst_1[1:3] + x_semantic_lst_2[2:4]
-        outs = [output_3] + [output_add]+x_semantic_lst_1[1:3] + x_semantic_lst_2[2:4]
+        outs = [output_3] + [output_com]+ x_semantic_lst_1[1:3] + x_semantic_lst_2[2:4]
         #outs = [x_head] + x_semantic_lst_2[:-1]+x_semantic_lst_1[:-1] #conv_4
 
         #""" latest

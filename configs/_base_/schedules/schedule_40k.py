@@ -71,12 +71,12 @@ param_scheduler = [
 #new code
 # max_iters = 10_000
 optim_wrapper = dict(
-    optimizer=dict(type='SGD', lr=0.005, momentum=0.9, weight_decay=5e-4),
+    optimizer=dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=5e-4),
     type='OptimWrapper'
 )
 param_scheduler = [
   dict(type='LinearLR', start_factor=0.1, begin=0, end=2000, by_epoch=False),
-  dict(type='PolyLR',  eta_min=1e-4, power=1.0, begin=2000, end=10000, by_epoch=False),
+  dict(type='PolyLR',  eta_min=1e-4, power=1.0, begin=2000, end=1000, by_epoch=False),
 ]
 # train_cfg.max_iters = 20_000  (so LR is flat after 10k)
 
@@ -85,7 +85,7 @@ param_scheduler = [
 
 #my code
 # training schedule for 40k
-train_cfg = dict(type='IterBasedTrainLoop', max_iters=10000,val_interval=100)
+train_cfg = dict(type='IterBasedTrainLoop', max_iters=10000,val_interval=500)
 val_cfg = dict(type='ValLoop') #my comment
 
 
@@ -93,9 +93,9 @@ test_cfg = dict(type='TestLoop')
 default_hooks = dict(
 timer=dict(type='IterTimerHook'),
 #logger=dict(type='LoggerHook', interval=4719, log_metric_by_epoch=False),
-logger=dict(type='LoggerHook', interval=100, log_metric_by_epoch=False),
+logger=dict(type='LoggerHook', interval=500, log_metric_by_epoch=False),
 param_scheduler=dict(type='ParamSchedulerHook'),
-checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=1000),
+checkpoint=dict(type='CheckpointHook', by_epoch=False, interval=5000),
 sampler_seed=dict(type='DistSamplerSeedHook'),
 visualization=dict(type='SegVisualizationHook'))
 

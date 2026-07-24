@@ -52,8 +52,8 @@ optim_wrapper = dict(
     type='OptimWrapper'
 )
 param_scheduler = [
-  dict(type='LinearLR', start_factor=0.1, begin=0, end=1500, by_epoch=False),
-  dict(type='PolyLR',  eta_min=1e-4, power=1.0, begin=1500, end=10000, by_epoch=False),
+  dict(type='LinearLR', start_factor=0.1, begin=0, end=1000, by_epoch=False),
+  dict(type='PolyLR',  eta_min=1e-4, power=1.0, begin=1000, end=10000, by_epoch=False),
 ]
 # train_cfg.max_iters = 20_000  (so LR is flat after 10k)
 

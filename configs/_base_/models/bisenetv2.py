@@ -38,15 +38,15 @@ model = dict(
         bga_channels=128,
         #out_indices=(0, 1, 2, 3, 4),
         #lastout_indices=(0, 1, 2, 3, 4, 5, 6),
-        out_indices=(0, 1, 2, 3, 4, 5, 6, 7),
+        out_indices=(0, 1, 2, 3, 4, 5),
         ##out_indices=(0, 1, 2, 3, 4),
         init_cfg=None,
         align_corners=False),
  
 
-    decode_head=dict(
-        type='FCNHead',
-        in_channels=256,
+    decode_head=dict(   #only for output_3
+        type='FCNHead', #best FCNHead
+        in_channels=128,
         in_index=0,
         channels=1024,
         num_convs=1,
@@ -59,45 +59,74 @@ model = dict(
             type='CrossEntropyLoss', use_sigmoid=False, loss_weight=2.50)),
 auxiliary_head = [
     
-    #dict(
-    #    type='FCNHead',   # only for rgb branch
-    #    in_channels=128,
-    #    channels=1024,
-    #    num_convs=2,
-    #    num_classes=6,
-    #    in_index=1,
-    #    norm_cfg=norm_cfg,
-    #    concat_input=False,
-    #   align_corners=False,
-    #   loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)
-    
-    #),
-        dict(
-        type='FCNHeadUseAuxGT2',   # only for rgb branch
+    dict(
+        type='FCNHead',   # best FCNHead
         in_channels=128,
-        channels=1024,
-        num_convs=2,
+       channels=1024,
+       num_convs=2,
         num_classes=6,
         in_index=1,
         norm_cfg=norm_cfg,
         concat_input=False,
-        align_corners=False,
-        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)
+       align_corners=False,
+       loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)
     
     ),
-        dict(
-        type='FCNHead',   # only for rgb branch
-        in_channels=256,
-        channels=1024,
-        num_convs=2,
-        num_classes=6,
-        in_index=2,
-        norm_cfg=norm_cfg,
-        concat_input=False,
-        align_corners=False,
-        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)
+    #    dict(
+    #    type='FCNHeadUseAuxGT',   # only for output_2
+    #    in_channels=128,
+    #    channels=1024,
+    #    num_convs=2, #2 is the original
+    #    num_classes=6,
+    #    in_index=2,
+    #    norm_cfg=norm_cfg,
+    #    concat_input=False,
+    #    align_corners=False,
+    #    loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)
     
-    ),
+    #),
+    #    dict(
+    #    type='FCNHead',   # lastfcnhead
+    #    #type='FCNHeadUseAuxGT2',
+    #    in_channels=128,
+    #    channels=1024,
+    #    num_convs=2, #2 is the original
+    #    num_classes=6,
+     #   in_index=1,
+    #    norm_cfg=norm_cfg,
+    #    concat_input=False,
+    #    align_corners=False,
+    #   loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)
+    
+    #),
+    #    dict(
+    #    type='FCNHead',   # only for output_com
+        #type='FCNHeadUseAuxGT2',
+    #    in_channels=128,
+    #    channels=1024,
+    #    num_convs=2, #2 is the original
+    #    num_classes=6,
+    #    in_index=3,
+    #    norm_cfg=norm_cfg,
+    #    concat_input=False,
+    #    align_corners=False,
+    #    loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)
+    
+    #),
+    #    dict(
+    #    type='FCNHeadUseAuxGT',   # only for output_com
+    #    #type='FCNHeadUseAuxGT2',
+    #    in_channels=128,
+    #    channels=1024,
+    #    num_convs=2, #2 is the original
+    #    num_classes=6,
+    #    in_index=3,
+    #    norm_cfg=norm_cfg,
+    #    concat_input=False,
+    #    align_corners=False,
+    #    loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=2.50)
+    
+    #),
     #    dict(
     #    type='FCNHeadUseAuxGT',   # only for rgb branch
     #    in_channels=16,
@@ -117,7 +146,7 @@ auxiliary_head = [
         channels=64,
         num_convs=2,
         num_classes=6,
-        in_index=3,
+        in_index=2,
         norm_cfg=norm_cfg,
         concat_input=False,
         align_corners=False,
@@ -131,7 +160,7 @@ auxiliary_head = [
          channels=256,
          num_convs=2,
          num_classes=6,
-         in_index=4,
+         in_index=3,
          norm_cfg=norm_cfg,
          concat_input=False,
          align_corners=False,
@@ -139,27 +168,27 @@ auxiliary_head = [
     
     ),
      
-    dict(
-        type='FCNHeadUseAuxGT',   # only for rgb branch
-        in_channels=128,
-        channels=1024,
-        num_convs=2,
-        num_classes=6,
-        in_index=5,
-        norm_cfg=norm_cfg,
-        concat_input=False,
-        align_corners=False,
-        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)
+    #dict(
+    #    type='FCNHeadUseAuxGT',   # only for rgb branch
+    #    in_channels=128,
+    #    channels=1024,
+    #    num_convs=2,
+    #    num_classes=6,
+    #    in_index=3,
+    #    norm_cfg=norm_cfg,
+    #   concat_input=False,
+    #    align_corners=False,
+    #    loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)
     
-    ),
+    #),
     #    dict(
     #    type='FCNHeadUseAuxGT2',   # only for rgb branch
     #    in_channels=32,
     #    channels=64,
     #    num_convs=2,
     #    num_classes=6,
-    #    in_index=4,
-    #    norm_cfg=norm_cfg,
+    #    in_index=3,
+    #   norm_cfg=norm_cfg,
     #    concat_input=False,
     #    align_corners=False,
     #    loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)
@@ -172,7 +201,7 @@ auxiliary_head = [
          channels=256,
          num_convs=2,
          num_classes=6,
-         in_index=6,
+         in_index=4,
          norm_cfg=norm_cfg,
          concat_input=False,
          align_corners=False,
@@ -186,7 +215,7 @@ auxiliary_head = [
         channels=1024,
         num_convs=2,
         num_classes=6,
-        in_index=7,
+        in_index=5,
         norm_cfg=norm_cfg,
         concat_input=False,
         align_corners=False,
