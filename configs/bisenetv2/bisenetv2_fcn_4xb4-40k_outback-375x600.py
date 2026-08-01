@@ -48,7 +48,7 @@ param_scheduler = [
 """
 # my code
 optim_wrapper = dict(
-    optimizer=dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=5e-4),
+    optimizer=dict(type='SGD', lr=0.005, momentum=0.9, weight_decay=5e-4),
     type='OptimWrapper'
 )
 param_scheduler = [
@@ -61,6 +61,6 @@ param_scheduler = [
 
 #optim_wrapper = dict(type='OptimWrapper', optimizer=optimizer) #my comment
 #train_dataloader = dict(batch_size=2, num_workers=4) #my comment
-train_dataloader = dict(batch_size=4, num_workers=4)# my code
+train_dataloader = dict(batch_size=8, num_workers=4)# my code
 val_dataloader = dict(batch_size=1, num_workers=4)
 test_dataloader = val_dataloader

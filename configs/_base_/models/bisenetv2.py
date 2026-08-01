@@ -38,7 +38,7 @@ model = dict(
         bga_channels=128,
         #out_indices=(0, 1, 2, 3, 4),
         #lastout_indices=(0, 1, 2, 3, 4, 5, 6),
-        out_indices=(0, 1, 2, 3, 4, 5),
+        out_indices=(0, 1, 2, 3, 4, 5, 6),
         ##out_indices=(0, 1, 2, 3, 4),
         init_cfg=None,
         align_corners=False),
@@ -72,19 +72,19 @@ auxiliary_head = [
        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)
     
     ),
-    #    dict(
-    #    type='FCNHeadUseAuxGT',   # only for output_2
-    #    in_channels=128,
-    #    channels=1024,
-    #    num_convs=2, #2 is the original
-    #    num_classes=6,
-    #    in_index=2,
-    #    norm_cfg=norm_cfg,
-    #    concat_input=False,
-    #    align_corners=False,
-    #    loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)
+        dict(
+        type='FCNHeadUseAuxGT',   # only for output_2
+       in_channels=128,
+       channels=1024,
+        num_convs=2, #2 is the original
+        num_classes=6,
+        in_index=2,
+        norm_cfg=norm_cfg,
+        concat_input=False,
+        align_corners=False,
+        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)
     
-    #),
+    ),
     #    dict(
     #    type='FCNHead',   # lastfcnhead
     #    #type='FCNHeadUseAuxGT2',
@@ -146,7 +146,7 @@ auxiliary_head = [
         channels=64,
         num_convs=2,
         num_classes=6,
-        in_index=2,
+        in_index=3,
         norm_cfg=norm_cfg,
         concat_input=False,
         align_corners=False,
@@ -160,7 +160,7 @@ auxiliary_head = [
          channels=256,
          num_convs=2,
          num_classes=6,
-         in_index=3,
+         in_index=4,
          norm_cfg=norm_cfg,
          concat_input=False,
          align_corners=False,
@@ -201,7 +201,7 @@ auxiliary_head = [
          channels=256,
          num_convs=2,
          num_classes=6,
-         in_index=4,
+         in_index=5,
          norm_cfg=norm_cfg,
          concat_input=False,
          align_corners=False,
@@ -215,7 +215,7 @@ auxiliary_head = [
         channels=1024,
         num_convs=2,
         num_classes=6,
-        in_index=5,
+        in_index=6,
         norm_cfg=norm_cfg,
         concat_input=False,
         align_corners=False,

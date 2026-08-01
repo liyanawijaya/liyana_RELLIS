@@ -851,7 +851,7 @@ class EfficientDepthRGBFusion(nn.Module):
         # Preserve the RGB semantic path
         fused = fused
 
-        return fused
+        return fused, depth_weighted
 class BGALayer(BaseModule):
     """Bilateral Guided Aggregation Layer to fuse the complementary information
     from both Detail Branch and Semantic Branch.
@@ -874,6 +874,7 @@ class BGALayer(BaseModule):
     """
 
     def __init__(self,
+                 
                  out_channels=128,
                  align_corners=False,
                  conv_cfg=None,
@@ -975,6 +976,7 @@ class BGALayer(BaseModule):
       
         self.semantic_dwconv_depth = nn.Sequential(
             DepthwiseSeparableConvModule(
+                
                 in_channels=self.out_channels,
                 out_channels=self.out_channels,
                 kernel_size=3,
@@ -1027,6 +1029,48 @@ class BGALayer(BaseModule):
             ),
             nn.BatchNorm2d(128),
             nn.SiLU(inplace=True)
+        )
+        self.mix_ch_1 = nn.Sequential(
+            nn.Conv2d(
+                128 * 2,
+                128,
+                kernel_size=1,
+                bias=False
+            ),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(
+                128,
+                128,
+                kernel_size=3,
+                padding=1,
+                groups=128,
+                bias=False
+            ),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True)
+        )
+        self.mix_ch_2 = nn.Sequential(
+            nn.Conv2d(
+                128 * 2,
+                128,
+                kernel_size=1,
+                bias=False
+            ),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+
+            nn.Conv2d(
+                128,
+                128,
+                kernel_size=3,
+                padding=1,
+                groups=128,
+                bias=False
+            ),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True)
         )
         self.mix_conv_2 = nn.Sequential(
             nn.Conv2d(
@@ -1178,10 +1222,13 @@ class BGALayer(BaseModule):
    
         output_1 = self.mix_conv(x) #detail resolution
         output_2 = self.mix_conv_1(x_1) #semantic resolution
+        #output_1 = self.mix_conv(x) #detail resolution
+        #output_2 = self.mix_conv_1(x_1) #semantic resolution
         #output_2 = fuse_3+fuse_4_up
         #output_1=torch.sigmoid(fuse_1)*fuse_3
         #output_2=torch.sigmoid(fuse_2)*fuse_4
-        
+        #output_1 = fuse_2 #detail resolution
+        #output_2 = fuse_4 #semantic resolution
         #output_1_new=fuse_1+fuse_2_up #new
         #output_2_new=fuse_3+fuse_4_up #new 
         #output_1 = fuse_1+fuse_3 #detail resolution
@@ -1228,7 +1275,7 @@ class BGALayer(BaseModule):
 
         output_com=torch.sigmoid(output_2_up)*torch.sigmoid(output_1)
         output_add=torch.sigmoid(output_1)+torch.sigmoid(output_2_up)
-        fused = self.lidar_att(torch.sigmoid(output_1), torch.sigmoid(output_2_up), output_com)       
+        fused, attention = self.lidar_att(torch.sigmoid(output_1), torch.sigmoid(output_2_up), output_com)       
         
         #output_3=output_add
         #output_com=torch.sigmoid(output_1)*torch.sigmoid(output_2_up)
@@ -1261,7 +1308,7 @@ class BGALayer(BaseModule):
         #lastreturn output_2, output_3
         #return torch.sigmoid(fuse_2_up)*torch.sigmoid(fuse_4_up), output_3, output_com
         #return output_2_up, output_3, output_com
-        return fused, output_com
+        return fused, output_com, attention
 
 @MODELS.register_module()
 class BiSeNetV2(BaseModule):
@@ -1307,7 +1354,7 @@ class BiSeNetV2(BaseModule):
                  semantic_expansion_ratio=6,
                  bga_channels=128,
                  #lastout_indices=(0, 1, 2, 3, 4, 5, 6),
-                 out_indices=(0, 1, 2, 3, 4, 5),
+                 out_indices=(0, 1, 2, 3, 4, 5, 6),
                  align_corners=False,
                  conv_cfg=None,
                  norm_cfg=dict(type='BN'),
@@ -1404,10 +1451,10 @@ class BiSeNetV2(BaseModule):
         #x_head = self.bga(x_detail, x_semantic_lst_1[-1]) #my comment
         #x_head_2, 
         #finalx_head_2, x_head_3, x_head_com= self.bga(x_detail, x_depth, x_semantic_lst_1[-1], x_semantic_lst_2[-1])
-        output_3, output_add= self.bga(x_detail, x_depth, x_semantic_lst_1[-1], x_semantic_lst_2[-1])
+        output_3, output_add, attention= self.bga(x_detail, x_depth, x_semantic_lst_1[-1], x_semantic_lst_2[-1])
         #outs = [x_head] + x_semantic_lst_2[2:4]+x_semantic_lst_1[2:4] #conv_5
         #final outs = [x_head_3]+[x_head_2] +[x_head_com] + x_semantic_lst_1[1:3] + x_semantic_lst_2[2:4]
-        outs = [output_3] + [output_add]+x_semantic_lst_1[1:3] + x_semantic_lst_2[2:4]
+        outs = [output_3] + [output_add]+ [attention]+x_semantic_lst_1[1:3] + x_semantic_lst_2[2:4]
         #outs = [x_head] + x_semantic_lst_2[:-1]+x_semantic_lst_1[:-1] #conv_4
 
         #""" latest
