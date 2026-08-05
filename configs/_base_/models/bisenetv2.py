@@ -73,7 +73,7 @@ auxiliary_head = [
     
     ),
         dict(
-        type='FCNHeadUseAuxGT',   # only for output_2
+        type='FCNHeadUseAuxGT2',   # only for output_2
        in_channels=128,
        channels=1024,
         num_convs=2, #2 is the original

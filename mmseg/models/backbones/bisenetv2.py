@@ -818,7 +818,7 @@ class EfficientDepthRGBFusion(nn.Module):
             nn.ReLU(inplace=True)
         )
 
-    def forward(self, rgb_feat, depth_feat, output_com):
+    def forward(self, rgb_feat, depth_feat, output_com, fuse_3):
         """
         rgb_feat:   [B, 128, H, W]
         depth_feat: [B, 128, H, W]
@@ -839,7 +839,8 @@ class EfficientDepthRGBFusion(nn.Module):
         rgb_attention = self.rgb_attention(rgb_proj)
         common = self.common_projection(output_com)
         # Residual attention prevents complete depth suppression
-        rgb_weighted = rgb_proj * (0.5 + depth_attention)
+        rgb_weighted = rgb_proj*(0.5 + depth_attention) #best results
+        #rgb_weighted = rgb_proj * (depth_attention)
         depth_weighted = depth_proj * (0.5 + rgb_attention)
         fusion_input = torch.cat(
             [rgb_weighted+output_com, depth_weighted+output_com],
@@ -851,7 +852,7 @@ class EfficientDepthRGBFusion(nn.Module):
         # Preserve the RGB semantic path
         fused = fused
 
-        return fused, depth_weighted
+        return fused, depth_weighted #best results
 class BGALayer(BaseModule):
     """Bilateral Guided Aggregation Layer to fuse the complementary information
     from both Detail Branch and Semantic Branch.
@@ -1218,6 +1219,8 @@ class BGALayer(BaseModule):
         ##output_1 = fuse_1                            # nn.Conv2d(C+C2, C_out, kernel_size=1)
         x = torch.cat([(fuse_1),(fuse_2_up)], dim=1) 
         x_1 = torch.cat([(fuse_3),(fuse_4_up)], dim=1) 
+        #x_2 = torch.cat([(fuse_1),(fuse_3)], dim=1) 
+        #x_3 = torch.cat([(fuse_2_up),(fuse_4_up)], dim=1) 
         #output_2=fuse_2_up*fuse_4_up
    
         output_1 = self.mix_conv(x) #detail resolution
@@ -1275,7 +1278,7 @@ class BGALayer(BaseModule):
 
         output_com=torch.sigmoid(output_2_up)*torch.sigmoid(output_1)
         output_add=torch.sigmoid(output_1)+torch.sigmoid(output_2_up)
-        fused, attention = self.lidar_att(torch.sigmoid(output_1), torch.sigmoid(output_2_up), output_com)       
+        fused, attention = self.lidar_att(torch.sigmoid(output_1), torch.sigmoid(output_2_up), output_com, fuse_3)       
         
         #output_3=output_add
         #output_com=torch.sigmoid(output_1)*torch.sigmoid(output_2_up)
@@ -1454,7 +1457,7 @@ class BiSeNetV2(BaseModule):
         output_3, output_add, attention= self.bga(x_detail, x_depth, x_semantic_lst_1[-1], x_semantic_lst_2[-1])
         #outs = [x_head] + x_semantic_lst_2[2:4]+x_semantic_lst_1[2:4] #conv_5
         #final outs = [x_head_3]+[x_head_2] +[x_head_com] + x_semantic_lst_1[1:3] + x_semantic_lst_2[2:4]
-        outs = [output_3] + [output_add]+ [attention]+x_semantic_lst_1[1:3] + x_semantic_lst_2[2:4]
+        outs = [output_3] + [output_add] + [attention] + x_semantic_lst_1[1:3] + x_semantic_lst_2[2:4]
         #outs = [x_head] + x_semantic_lst_2[:-1]+x_semantic_lst_1[:-1] #conv_4
 
         #""" latest
