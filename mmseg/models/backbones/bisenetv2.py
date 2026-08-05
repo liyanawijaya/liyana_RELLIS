@@ -719,7 +719,7 @@ class LidarGuidedFusion(nn.Module):
 
 
 class EfficientDepthRGBFusion(nn.Module):
-    def __init__(self, channels=128, reduction=4):
+    def __init__(self, channels=128, reduction=1):
         super().__init__()
 
         hidden_channels = channels // reduction
@@ -841,7 +841,8 @@ class EfficientDepthRGBFusion(nn.Module):
         # Residual attention prevents complete depth suppression
         rgb_weighted = rgb_proj*(0.5 + depth_attention) #best results
         #rgb_weighted = rgb_proj * (depth_attention)
-        depth_weighted = depth_proj * (0.5 + rgb_attention)
+        depth_weighted = depth_proj * (0.5 + rgb_attention) #best results
+        #depth_weighted = depth_proj * (rgb_attention)
         fusion_input = torch.cat(
             [rgb_weighted+output_com, depth_weighted+output_com],
             dim=1
